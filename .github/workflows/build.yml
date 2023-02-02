@@ -1,0 +1,145 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+
+jobs:
+  build:
+    name: ${{ matrix.job.target }} (${{ matrix.job.os }})
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          # - { target: i686-pc-windows-msvc        , os: windows-latest }
+          - { target: x86_64-apple-darwin         , os: macos-latest  }
+          - { target: x86_64-pc-windows-gnu       , os: windows-latest }
+          # - { target: x86_64-pc-windows-msvc      , os: windows-latest }
+          - { target: x86_64-unknown-linux-gnu    , os: ubuntu-latest }
+          # - { target: x86_64-unknown-linux-musl   , os: ubuntu-latest }
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Extract pyproject infos
+        shell: bash
+        run: |
+          echo "PROJECT_NAME=$(sed -n 's/^name = "\(.*\)"/\1/p' pyproject.toml| head -n 1)" >> $GITHUB_ENV
+          echo "PROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml| head -n 1)" >> $GITHUB_ENV
+
+      - name: Generate project data
+        shell: bash
+        run: |
+          EXE_suffix=""
+          case ${{ matrix.job.target }} in
+            *-windows-*) EXE_suffix=".exe" ;;
+          esac
+          BIN_NAME="alwaysdata${EXE_suffix}"
+
+          COMPILER_OPTS="--disable-ccache"
+          case ${{ matrix.job.target }} in
+            *-linux-* | *-apple-*) COMPILER_OPTS="${COMPILER_OPTS} --clang --lto=yes" ;;
+            # *-apple-*) COMPILER_OPTS="${COMPILER_OPTS} --clang" ;;
+            x86_64-*-windows-*) COMPILER_OPTS="${COMPILER_OPTS} --mingw64" ;;
+          esac
+
+          PLATFORM="x64"
+          case ${{ matrix.job.target }} in
+            i686-*) PLATFORM="x86" ;;
+          esac
+
+          BASENAME=${PROJECT_NAME}-v${PROJECT_VERSION}-${{ matrix.job.target }}
+          mkdir -p ${BASENAME}
+
+          echo "BASENAME=${BASENAME}" >> $GITHUB_ENV
+          echo "BIN_NAME=${BIN_NAME}" >> $GITHUB_ENV
+          echo "COMPILER_OPTS=${COMPILER_OPTS}" >> $GITHUB_ENV
+          echo "PLATFORM=${PLATFORM}" >> $GITHUB_ENV
+
+      - name: Setup GMinGW-w64
+        uses: egor-tensin/setup-mingw@v2
+        if: ${{ contains(matrix.job.target, 'windows') }}
+        with:
+          platform: ${{ env.PLATFORM }}
+
+      - name: Setup MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@v2
+        if: ${{ contains(matrix.job.target, 'windows-msvc') }}
+        with:
+          arch: ${{ env.PLATFORM }}
+
+      - name: Install Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          architecture: ${{ env.PLATFORM }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.3.2
+
+      - name: Install dependencies
+        shell: bash
+        run: poetry install --with build
+
+      - name: Run Nuitka build
+        shell: bash
+        run: |
+          poetry run python -m nuitka \
+            --no-progressbar \
+            --assume-yes-for-downloads \
+            --enable-plugin=no-qt \
+            --enable-plugin=upx \
+            --enable-plugin=anti-bloat --noinclude-default-mode=nofollow --show-anti-bloat-changes \
+            --report=${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml \
+            --company-name=alwaysdata --product-name=${{ env.PROJECT_NAME }} --product-version=${{ env.PROJECT_VERSION }} \
+            --python-flag=-m \
+            --follow-import-to=src \
+            ${{ env.COMPILER_OPTS }} \
+            --onefile --onefile-tempdir-spec='%CACHE_DIR%/%COMPANY%/%PRODUCT%/%VERSION%' \
+            --output-dir=${{ env.BASENAME }} --output-filename=${{ env.BASENAME }}/${{ env.BIN_NAME }} \
+            src
+
+      - name: "Report upload"
+        uses: actions/upload-artifact@master
+        with:
+          name: report-${{ env.BASENAME }}.xml
+          path: ${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml
+
+      - name: Package
+        shell: bash
+        run: |
+          PKG_suffix=".tar.gz"
+          case ${{ matrix.job.target }} in
+            *-windows-*) PKG_suffix=".zip" ;;
+          esac
+          PKG_NAME=${BASENAME}${PKG_suffix}
+          PKG_DIR=${BASENAME}/packages
+
+          mkdir -p ${PKG_DIR}/${BASENAME}
+
+          case ${{ matrix.job.target }} in
+            *-apple-* | *-linux-*) chmod +x ${BASENAME}/${BIN_NAME} ;;
+          esac
+          cp ${BASENAME}/${BIN_NAME} ${PKG_DIR}/${BASENAME}
+
+          pushd "${PKG_DIR}/" >/dev/null
+          case ${{ matrix.job.target }} in
+            *-windows-*) 7z -y a "${PKG_NAME}" "${BASENAME}" | tail -2 ;;
+            *) tar czf "${PKG_NAME}" "${BASENAME}" ;;
+          esac
+          popd > /dev/null
+
+          echo "PKG_NAME=${PKG_NAME}" >> $GITHUB_ENV
+          echo "PKG_PATH=${PKG_DIR}/${PKG_NAME}" >> $GITHUB_ENV
+
+      - name: "Artifact upload"
+        uses: actions/upload-artifact@master
+        with:
+          name: ${{ env.PKG_NAME }}
+          path: ${{ env.PKG_PATH }}
