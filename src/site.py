@@ -1,8 +1,10 @@
-from typer import Context, Typer
-from requests import get, codes
 from tabulate import tabulate
+from typer import Context, Typer
 
-BASE_URL = "https://api.alwaysdata.com/v1/site/"
+from .config import config
+from .requests import get
+
+URI = "/site/"
 
 app = Typer()
 
@@ -19,15 +21,15 @@ def list(ctx: Context):
     """
     Display site's list
     """
-    account = f" account={ctx.obj['account']}" if ctx.obj.get("account") else ''
-    credentials = (f"{ctx.obj['api_key']}{account}:", '')
-    response = get(BASE_URL, auth=credentials)
-    if response.status_code == codes.ok:
-        data = [["Name", "ID", "Addresses"]]
-        for site in response.json():
-            addresses = "\n".join(site["addresses"])
-            data.append([site.get('name'), site['id'], addresses])
-        print(tabulate(data, headers=("firstrow")))
+    api_url = f"{config['api']['base_url']}/{config['api']['version']}/{URI}"
+
+    sites = get(api_url)
+    headers = ["Name", "ID", "Addresses"]
+    data = [
+        (site.get("name", None), site["id"], "\n".join(site["addresses"]))
+        for site in sites
+    ]
+    print(tabulate(data, headers=headers))
 
 
 @app.command()

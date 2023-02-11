@@ -1,2 +1,10 @@
-src.*
+# Build
+src.*/
 alwaysdata
+
+# Assets
+*.cast
+*.gif
+
+# Logging
+*.log
