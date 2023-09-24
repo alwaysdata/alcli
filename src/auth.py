@@ -1,61 +1,59 @@
 from typing import Optional
 
-from tabulate import tabulate
+from rich.markdown import Markdown
 from typer import Context, Exit, Option, Typer, prompt
 
-from .config import config
-from .config import app as config_app, set
-from .requests import auth_requests, get, post
-from .types import Format
-from .utils import forward, invoke
+# from .config import app as config_app
+from .config import load as load_config
+# from .config import set
+from .utils.api import api_url, auth_session, get, post
+from .utils.click import forward, invoke
+from .utils.console import Renderer, print
 
 # import json
 
 
 URI = "/token/"
 
+
 app = Typer()
 
 
 @app.callback()
-def auth():
+def main():
     """
     Manage CLI authentication on the API.
     """
 
 
 @app.command()
-def list(
-    ctx: Context,
-):
+def list(ctx: Context):
     """
-    List API tokens
+    List API tokens.
     """
-    api_url = f"{config['api']['base_url']}/{config['api']['version']}/{URI}"
+    config = load_config()
 
-    list = get(api_url, format=ctx.obj["format"])
+    list = get(api_url(URI))
+
+    # Return Requests response when called outside of Typer
+    # (see `login` command)
     if ctx.command.name != "list":
         return list
 
     if not len(list):
         raise Exit()
 
-    if ctx.obj["format"] == Format.json:
-        return print(list)
-
-    headers = ["Application", "Status", "IP", "Key"]
-    data = [
-        [
-            app["app_name"],
-            "Disabled" if app["is_disabled"] else "Enabled",
-            "-"
-            if app["allowed_ips"] is None
-            else app["allowed_ips"].replace(" ", "\n"),
-            app["key"],
-        ]
-        for app in list
+    table = [
+        {
+            "app_name": item.get("app_name"),
+            "key": item.get("key"),
+            "enabled": not item.get("is_disabled"),
+            "allowed_ips": "*" if item.get("allowed_ips") is None else item.get("allowed_ips"),
+        }
+        for item in list
     ]
-    print(tabulate(data, headers=headers))
+
+    print(table, renderer=Renderer.table, headers=("App Name", "Key", "Enabled", "Allowed IPs"))
 
 
 @app.command()
@@ -63,9 +61,7 @@ def login(
     ctx: Context,
     username: str = Option(None, help="Your alwaysdata's account username."),
     password: str = Option(None, help="Your alwaysdata's account password."),
-    api_key: str = Option(
-        None, help="Your API key from https://admin.alwaysdata.com/token/."
-    ),
+    api_key: str = Option(None, help="Your API key from https://admin.alwaysdata.com/token/."),
     no_api_key: Optional[bool] = Option(
         None,
         hidden=True,
@@ -75,45 +71,33 @@ def login(
     """
     Login user and retrieve an API token.
     """
-    api_url = f"{config['api']['base_url']}/{config['api']['version']}/{URI}"
-
-    # Override global `--api-key` with local
-    if api_key:
-        ctx.obj["api_key"] = api_key
-
-    if no_api_key:
-        ctx.obj.pop("api_key", None)
-
-    # Prompt the user for credentials when no api-key is available
-    if no_api_key or ("api_key" not in ctx.obj and not config.has_option("api", "key")):
-        if username is None:
-            username = prompt("Username")
-        if password is None:
-            password = prompt("Password", hide_input=True)
-        ctx.obj["api_key"] = username
-
-    # Reload credentials from options
-    auth_requests(
-        api_key=ctx.obj.get("api_key", None),
-        account=ctx.obj.get("account", None),
-        password=password,
-    )
+    config = load_config()
 
     tokens = list(ctx)
-    cli_token = None
+    logged_in = bool(not no_api_key and len(tokens))
 
-    try:
-        cli_token = next(t for t in tokens if t["app_name"] == config["app"]["name"])
-    except StopIteration:
-        pass
-
-    if cli_token is None:
-        created = post(api_url, data={"app_name": config["app"]["name"]})
-        if created:
-            forward(app, login)
-        else:
-            raise Exit(code=1)
+    if config.get("output", "format") == Format.json.value:
+        content = {"logged_in": logged_in}
 
     else:
-        invoke(config_app, set, name="api.key", value=cli_token['key'])
-        print("You're logged into the platform!")
+        if logged_in:
+            content = "You're logged into the platform!"
+
+        else:
+            content = """
+Interactive login is currently not available.
+        
+Please login manually to https://admin.alwaysdata.com/token/, create a token,
+and set it with the command `alwaysdata config set api.key <token>`.
+    """
+
+    print(content, title="API Login")
+
+    # created = post(api_url, data={"app_name": config["app"]["name"]})
+    # if created:
+    #     forward(app, login)
+    # else:
+    #     raise Exit(code=1)
+
+    # else:
+    #     invoke(config_app, set, name="api.key", value=cli_token["key"])

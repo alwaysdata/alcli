@@ -95,7 +95,7 @@ jobs:
             --assume-yes-for-downloads \
             --enable-plugin=no-qt \
             --enable-plugin=upx \
-            --enable-plugin=anti-bloat --noinclude-default-mode=nofollow --show-anti-bloat-changes \
+            --noinclude-default-mode=nofollow --show-anti-bloat-changes \
             --report=${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml \
             --company-name=alwaysdata --product-name=${{ env.PROJECT_NAME }} --product-version=${{ env.PROJECT_VERSION }} \
             --python-flag=-m \

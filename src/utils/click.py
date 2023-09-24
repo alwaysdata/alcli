@@ -5,9 +5,7 @@ from typer.main import Typer, get_command_from_info
 from typer.models import CommandInfo
 
 
-def find_command_info(
-    typer_instance: Typer, callback: Callable
-) -> Optional[CommandInfo]:
+def find_command_info(typer_instance: Typer, callback: Callable) -> Optional[CommandInfo]:
     for command_info in typer_instance.registered_commands:
         if command_info.callback == callback:
             return command_info
@@ -32,19 +30,11 @@ def callback_to_click_command(
     return callback
 
 
-def invoke(
-    typer_instance: Typer, callback: Union[Callable, Command], *args, **kwargs
-) -> Any:
+def invoke(typer_instance: Typer, callback: Union[Callable, Command], *args, **kwargs) -> Any:
     ctx = get_current_context()
-    return ctx.invoke(
-        callback_to_click_command(typer_instance, callback), *args, **kwargs
-    )
+    return ctx.invoke(callback_to_click_command(typer_instance, callback), *args, **kwargs)
 
 
-def forward(
-    typer_instance: Typer, callback: Union[Callable, Command], *args, **kwargs
-) -> Any:
+def forward(typer_instance: Typer, callback: Union[Callable, Command], *args, **kwargs) -> Any:
     ctx = get_current_context()
-    return ctx.forward(
-        callback_to_click_command(typer_instance, callback), *args, **kwargs
-    )
+    return ctx.forward(callback_to_click_command(typer_instance, callback), *args, **kwargs)

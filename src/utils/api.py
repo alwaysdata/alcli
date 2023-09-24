@@ -1,36 +1,47 @@
 from json import dumps
 
-from typer import Exit
-
 from requests import codes
 from requests import get as r_get
 from requests import post as r_post
+from rich.status import Status
+from typer import Exit
 
-from .config import config
-from .types import Format
+from ..config import load as load_config
+from .console import Format, console, print
 
 _auth = None
 
 
-def auth_requests(api_key=None, account=None, password=""):
+class TokenNotFound(ValueError):
+    """Failed to get Token for scrapping"""
+
+
+def api_url(URI, path=None):
+    config = load_config()
+    return f"{config.get('api', 'base_url')}/{config.get('api', 'version')}/{URI}/{path if path is not None else ''}"
+
+
+def auth_session(api_key, account=None, password=""):
     """
     Generate the credentials to be used on API
     """
     global _auth
 
-    token = config.get("api", "key", fallback="")
-    if api_key:
-        token = api_key
+    token = api_key
 
     if account:
         token = f"{token} account={account}"
-    elif config.has_option("api", "account"):
-        token = f"{token} account={config['api']['account']}"
 
     _auth = (token, password)
 
 
-def get(url, format=Format.text):
+_spinner = Status("Loading...", console=console, spinner="dots")
+
+
+def get(url):
+    # TODO: do not show spinner under --no-pretty mode
+    _spinner.start()
+
     response = r_get(url, auth=_auth)
 
     if response.status_code == codes.unauthorized:
@@ -44,6 +55,7 @@ def get(url, format=Format.text):
     if response.status_code != codes.ok:
         raise Exit(code=1)
 
+    _spinner.stop()
     return response.json()
 
 
