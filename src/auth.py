@@ -8,7 +8,7 @@ from .config import load as load_config
 # from .config import set
 from .utils.api import api_url, auth_session, get, post
 from .utils.click import forward, invoke
-from .utils.console import Renderer, print
+from .utils.console import Format, Renderer, print
 
 # import json
 
@@ -48,7 +48,7 @@ def list(ctx: Context):
             "app_name": item.get("app_name"),
             "key": item.get("key"),
             "enabled": not item.get("is_disabled"),
-            "allowed_ips": "*" if item.get("allowed_ips") is None else item.get("allowed_ips"),
+            "allowed_ips": "*" if item.get("allowed_ips") is None else item.get("allowed_ips").split(" "),
         }
         for item in list
     ]
@@ -73,8 +73,11 @@ def login(
     """
     config = load_config()
 
-    tokens = list(ctx)
-    logged_in = bool(not no_api_key and len(tokens))
+    if no_api_key:
+        logged_in = False
+    else:
+        tokens = list(ctx)
+        logged_in = bool(not no_api_key and tokens)
 
     if config.get("output", "format") == Format.json.value:
         content = {"logged_in": logged_in}
@@ -92,6 +95,8 @@ and set it with the command `alwaysdata config set api.key <token>`.
     """
 
     print(content, title="API Login")
+
+    return logged_in
 
     # created = post(api_url, data={"app_name": config["app"]["name"]})
     # if created:
