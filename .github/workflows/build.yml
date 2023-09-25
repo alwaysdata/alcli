@@ -47,6 +47,11 @@ jobs:
             x86_64-*-windows-*) COMPILER_OPTS="${COMPILER_OPTS} --mingw64" ;;
           esac
 
+          PLUGINS_OPTS=""
+          case ${{ matrix.job.target }} in
+            x86_64-*-windows-* | *-apple-*) PLUGINS_OPTS="${PLUGINS_OPTS} --enable-plugin=upx" ;;
+          esac
+
           PLATFORM="x64"
           case ${{ matrix.job.target }} in
             i686-*) PLATFORM="x86" ;;
@@ -58,6 +63,7 @@ jobs:
           echo "BASENAME=${BASENAME}" >> $GITHUB_ENV
           echo "BIN_NAME=${BIN_NAME}" >> $GITHUB_ENV
           echo "COMPILER_OPTS=${COMPILER_OPTS}" >> $GITHUB_ENV
+          echo "PLUGINS_OPTS=${PLUGINS_OPTS}" >> $GITHUB_ENV
           echo "PLATFORM=${PLATFORM}" >> $GITHUB_ENV
 
       - name: Setup GMinGW-w64
@@ -94,7 +100,7 @@ jobs:
             --no-progressbar \
             --assume-yes-for-downloads \
             --enable-plugin=no-qt \
-            --enable-plugin=upx \
+            ${{ env.PLUGINS_OPTS }} \
             --noinclude-default-mode=nofollow --show-anti-bloat-changes \
             --report=${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml \
             --company-name=alwaysdata --product-name=${{ env.PROJECT_NAME }} --product-version=${{ env.PROJECT_VERSION }} \
@@ -102,7 +108,7 @@ jobs:
             --follow-import-to=src \
             ${{ env.COMPILER_OPTS }} \
             --onefile --onefile-tempdir-spec='%CACHE_DIR%/%COMPANY%/%PRODUCT%/%VERSION%' \
-            --output-dir=${{ env.BASENAME }} --output-filename=${{ env.BASENAME }}/${{ env.BIN_NAME }} \
+            --output-dir=${{ env.BASENAME }} --output-filename=${{ env.BIN_NAME }} \
             src
 
       - name: "Report upload"
