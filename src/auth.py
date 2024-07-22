@@ -5,6 +5,7 @@ from typer import Context, Exit, Option, Typer, prompt
 
 # from .config import app as config_app
 from .config import load as load_config
+
 # from .config import set
 from .utils.api import api_url, auth_session, get, post
 from .utils.click import forward, invoke

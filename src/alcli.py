@@ -42,7 +42,11 @@ def main(
         help="An alternative path to the config file.",
     ),
     output_format: Format = Option(
-        Format.text, "--format", "-f", help="The format to return data.", case_sensitive=False
+        Format.text,
+        "--format",
+        "-f",
+        help="The format to return data.",
+        case_sensitive=False,
     ),
     output_pretty: bool = Option(True, "--pretty/--no-pretty", help="Enable/Disable fancy user output."),
     version: Optional[bool] = Option(None, "--version", callback=version_callback, is_eager=True),
