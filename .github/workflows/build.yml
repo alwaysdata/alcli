@@ -15,12 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          # - { target: i686-pc-windows-msvc        , os: windows-latest }
-          - { target: x86_64-apple-darwin         , os: macos-latest  }
+          - { target: x86_64-apple-darwin         , os: macos-intel    }
+          - { target: aarch64-apple-darwin        , os: macos-silicon  }
           - { target: x86_64-pc-windows-gnu       , os: windows-latest }
-          # - { target: x86_64-pc-windows-msvc      , os: windows-latest }
-          - { target: x86_64-unknown-linux-gnu    , os: ubuntu-latest }
-          # - { target: x86_64-unknown-linux-musl   , os: ubuntu-latest }
+          - { target: x86_64-unknown-linux-gnu    , os: ubuntu-latest  }
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
@@ -43,13 +41,13 @@ jobs:
           COMPILER_OPTS="--disable-ccache"
           case ${{ matrix.job.target }} in
             *-linux-* | *-apple-*) COMPILER_OPTS="${COMPILER_OPTS} --clang --lto=yes" ;;
-            # *-apple-*) COMPILER_OPTS="${COMPILER_OPTS} --clang" ;;
+            *-apple-*) COMPILER_OPTS="${COMPILER_OPTS} --clang" ;;
             x86_64-*-windows-*) COMPILER_OPTS="${COMPILER_OPTS} --mingw64" ;;
           esac
 
           PLUGINS_OPTS=""
           case ${{ matrix.job.target }} in
-            x86_64-*-windows-* | *-apple-*) PLUGINS_OPTS="${PLUGINS_OPTS} --enable-plugin=upx" ;;
+            x86_64-*-windows-* | x86_64-apple-*) PLUGINS_OPTS="${PLUGINS_OPTS} --enable-plugin=upx" ;;
           esac
 
           PLATFORM="x64"
@@ -78,16 +76,16 @@ jobs:
         with:
           arch: ${{ env.PLATFORM }}
 
-      - name: Install Python 3.10
+      - name: Install Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
           architecture: ${{ env.PLATFORM }}
 
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: 1.3.2
+          poetry-version: 1.8.2
 
       - name: Install dependencies
         shell: bash
@@ -97,18 +95,22 @@ jobs:
         shell: bash
         run: |
           poetry run python -m nuitka \
-            --no-progressbar \
-            --assume-yes-for-downloads \
-            --enable-plugin=no-qt \
-            ${{ env.PLUGINS_OPTS }} \
-            --noinclude-default-mode=nofollow --show-anti-bloat-changes \
-            --report=${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml \
-            --company-name=alwaysdata --product-name=${{ env.PROJECT_NAME }} --product-version=${{ env.PROJECT_VERSION }} \
+            --company-name=alwaysdata --product-name=${{ env.PROJECT_NAME }} \
+            --product-version=${{ env.PROJECT_VERSION }} \
+            --standalone \
+            --onefile \
+            --onefile-tempdir-spec='%CACHE_DIR%/%COMPANY%/%PRODUCT%/%VERSION%' \
             --python-flag=-m \
             --follow-import-to=src \
+            --assume-yes-for-downloads \
+            --enable-plugin=no-qt ${{ env.PLUGINS_OPTS }} \
+            --noinclude-default-mode=nofollow \
+            --show-anti-bloat-changes \
+            --report=${{ env.BASENAME }}/report-${{ env.BASENAME }}.xml \
+            --output-dir=${{ env.BASENAME }} \
+            --output-filename=${{ env.BIN_NAME }} \
+            --no-progressbar \
             ${{ env.COMPILER_OPTS }} \
-            --onefile --onefile-tempdir-spec='%CACHE_DIR%/%COMPANY%/%PRODUCT%/%VERSION%' \
-            --output-dir=${{ env.BASENAME }} --output-filename=${{ env.BIN_NAME }} \
             src
 
       - name: "Report upload"
