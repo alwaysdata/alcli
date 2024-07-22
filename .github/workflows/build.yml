@@ -64,18 +64,6 @@ jobs:
           echo "PLUGINS_OPTS=${PLUGINS_OPTS}" >> $GITHUB_ENV
           echo "PLATFORM=${PLATFORM}" >> $GITHUB_ENV
 
-      - name: Setup GMinGW-w64
-        uses: egor-tensin/setup-mingw@v2
-        if: ${{ contains(matrix.job.target, 'windows') }}
-        with:
-          platform: ${{ env.PLATFORM }}
-
-      - name: Setup MSVC
-        uses: TheMrMilchmann/setup-msvc-dev@v2
-        if: ${{ contains(matrix.job.target, 'windows-msvc') }}
-        with:
-          arch: ${{ env.PLATFORM }}
-
       - name: Install Python 3.11
         uses: actions/setup-python@v4
         with:
